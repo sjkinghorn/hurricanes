@@ -1,0 +1,16 @@
+library(rethinking)
+library(tidyverse)
+data("Hurricanes")
+df = Hurricanes
+
+# eda
+head(df)
+str(df)
+summary(df$femininity)
+table(df$female)
+ggplot(data=df, mapping = aes(x=femininity, y=deaths, color=female)) + geom_point()
+ggplot(data=df, mapping = aes(x=femininity, y=damage_norm, color=female)) + geom_point()
+ggplot(data=df, mapping = aes(x=factor(female), y=deaths)) + geom_boxplot()
+ggplot(data=df, mapping = aes(x=factor(female), y=damage_norm)) + geom_boxplot()
+ggplot(data=df, mapping = aes(x=factor(category), y=femininity)) + geom_boxplot()
+

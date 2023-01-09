@@ -1,0 +1,157 @@
+---
+title: "Hurricane Femininity and Deaths"
+author: "Sam Kinghorn"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+According to the paper published by Jung et al. (2014), hurricanes with female names are deadlier than ones with male names because people unconsciously think that it will be less dangerous. I will explore this claim through an EDA and model deaths based on femininity to see if there is any significance.
+
+## EDA
+
+First, I load the data and investigate the femininity of hurricanes. 62 hurricanes in this data set have female names and 30 have male names. The femininity score is skewed left with most observations having a relatively high score.
+
+```{r message=FALSE, warning=FALSE}
+library(rethinking)
+library(tidyverse)
+library(lme4)
+```
+
+```{r}
+data("Hurricanes")
+df = Hurricanes
+```
+
+```{r}
+table(df$female)
+summary(df$femininity)
+```
+
+\newpage
+
+The next two graphs show that some female hurricanes have a high number of deaths compared to male hurricanes. It's difficult to say if this is significant since there are more than double the number of female hurricanes.
+
+```{r}
+ggplot(data=df, mapping = aes(x=femininity, y=deaths, color=female)) + geom_point()
+```
+
+\newpage
+
+```{r}
+ggplot(data=df, mapping = aes(x=factor(female), y=deaths)) + geom_boxplot()
+```
+
+\newpage
+
+The next three graphs display the femininity in relation to damage and hurricane category. The first graph shows that low femininity has just as much damage as high femininity. The second graph reinforces this point through a boxplot. The third graph shows boxplots of femininity for hurricane categories. If female hurricanes were actually more dangerous, we might expect to see more male hurricanes in the first few categories and more female hurricanes in the last few. This doesn't appear to be the case.
+
+```{r}
+ggplot(data=df, mapping = aes(x=femininity, y=damage_norm, color=female)) + geom_point()
+```
+
+\newpage
+
+```{r}
+ggplot(data=df, mapping = aes(x=factor(female), y=damage_norm)) + geom_boxplot()
+```
+
+\newpage
+
+```{r}
+ggplot(data=df, mapping = aes(x=factor(category), y=femininity)) + geom_boxplot()
+```
+
+The EDA suggests that female hurricanes may result in more deaths but they don't appear to be more dangerous in terms of damage and category. This corroborates the paper by Jung et al. (2014), that people may perceive female hurricanes as less dangerous and not take necessary precautions, despite female hurricanes being just as dangerous as male hurricanes. Next, I will fit a model to determine if femininity is significant in explaining deaths.
+
+\newpage
+
+## Count Models
+
+The response variable is the number of deaths, therefore we are modeling a count variable. 
+
+## Bayesian GLM
+
+We can model deaths through poisson regression. The research hypothesis and conceptual model are:
+
+### Hypothesis
+
+The number of deaths increases with femininity.
+
+### Model
+
+$$deaths_i \sim Poisson(\mu_i)$$
+
+$$log(\mu_i) = \beta_0 + \beta_1 x_i$$ where $x_i$ is the level of femininity.
+
+### Priors
+
+$$\beta_0 \sim N(4,1)$$ $$\beta_1 \sim N(0,1)$$
+
+```{r}
+dat = list(
+  Y = df$deaths,
+  x = df$femininity
+)
+
+model1 <- quap(
+  alist(
+    Y ~ dpois(mu),
+    log(mu) <- a,
+    a ~ dnorm(4,1)
+  ), data=dat,
+)
+```
+
+```{r}
+model2 <- quap(
+  alist(
+    Y ~ dpois(mu),
+    log(mu) <- a+b1*x,
+    a~ dnorm(4,1),
+    b1 ~ dnorm(0,1)
+  ), data=dat,
+)
+
+precis(model2)
+```
+
+\newpage
+
+```{r}
+plot(precis(model2))
+```
+
+The coefficient for femininity is close to zero but the credible interval does not overlap zero.
+
+\newpage
+
+```{r}
+post <- extract.samples(model2)
+dens(post$b1)
+```
+
+## Comparison
+
+```{r}
+compare(model1, model2)
+```
+
+The model with femininity performs better than the intercept only model, suggesting femininity has a significant effect in predicting deaths from hurricanes.
+
+\newpage
+## Model Fit
+
+The model predicts well storms around the mean of death count and poorly storms that are much higher or lower than the mean death count.
+
+```{r}
+df$deaths_est <- exp(mean(post$a) + mean(post$b1) * df$femininity)
+plot(df$deaths, col=rangi2, xlab="Hurricane", ylab="Death Count")
+points(df$deaths_est)
+abline(h=mean(df$deaths), lty=2, col="red")
+```
+
+\newpage
+## Conclusion
+
+The final model uses femininity to predict death count since it performs better than an intercept only model. This model has a positive coefficient associated with femininity, suggesting higher scores of femininity result in more deaths. More concretely, for a unit increase in femininity, the estimated death count increases by a factor of about $e^{0.07}=1.072508$, or increases by $7\%$. This suggests that an increase of 1 in the femininity score of a hurricane's name is estimated to have 107 deaths instead of 100. This analysis lends credence to the hypotheses proposed by Jung et.al (2014), namely that female hurricanes are deadlier than male hurricanes.
+
