@@ -67,9 +67,27 @@ The EDA suggests that female hurricanes may result in more deaths but they don't
 
 ## Count Models
 
-The response variable is the number of deaths, therefore we are modeling a count variable. 
+The response variable is the number of deaths, therefore we are modeling a count variable. Poisson regression is a popular method for modeling count data, but there is a restrictive assumption on the model: the mean and variance of the response variable are equal. This comes from the fact that the mean and variance of the Poisson distribution are equal. In the case of our data, the mean and variance are 20.65 and 1673.15, respectively.
 
-## Bayesian GLM
+```{r}
+sprintf("mean = %1.2f, var = %1.2f", mean(df$deaths), var(df$deaths))
+```
+
+Since the variance is much larger than the mean, the count data is over-dispersed. When count data is over-dispersed or under-dispersed, negative binomial regression can be used. Negative binomial regression is a generalization of Poisson regression and doesn't have the assumption of equidispersion. Negative binomial regression has an extra parameter, $\theta$ that can accommodate over-dispersion. 
+
+```{r}
+table = data.frame(c('$\\lambda$', '$\\lambda$'), c('$\\lambda$', '$\\lambda + \\frac {\\lambda^2}{\\theta}$'))
+  colnames(table) = c("Mean", "Variance")
+  rownames(table) = c("Possion", "NB")
+  
+  kable(table, align = 'c', booktabs = TRUE) %>%
+  kable_styling(font_size = 20)
+```
+
+
+I will use both models and compare the results. The covariates include femininity score, minimum pressure of the storm, and normalized estimated damage of the storm in dollars. Minimum pressure is a measure of storm strength where lower values indicate a stronger storm. The main research question is on the significance of femininity score, but the other variables will be included to account for their effects on deaths. 
+
+## Poisson Regression
 
 We can model deaths through poisson regression. The research hypothesis and conceptual model are:
 
@@ -81,77 +99,75 @@ The number of deaths increases with femininity.
 
 $$deaths_i \sim Poisson(\mu_i)$$
 
-$$log(\mu_i) = \beta_0 + \beta_1 x_i$$ where $x_i$ is the level of femininity.
+$$log(\mu_i) = \beta_0 + \beta_1 x_{1i} + \beta_2 x_{2i} + \beta_3 x_{3i}$$ where $x_{1i}$ is the level of femininity, $x_{2i}$ is the minimum pressure measurement, and $x_{3i}$ is the normalized estimate of damages.
 
-### Priors
+### Results
 
-$$\beta_0 \sim N(4,1)$$ $$\beta_1 \sim N(0,1)$$
+The R printout for the model results can be seen in Appendix section [PUT SECTION]. The printout shows all variables as highly significant, i.e. all variables have a p-value below $0.01$. This means femininity score offers some explanatory power for hurricane deaths. The coefficients can be interpreted through exponentiation
 
-```{r}
-dat = list(
-  Y = df$deaths,
-  x = df$femininity
-)
-
-model1 <- quap(
-  alist(
-    Y ~ dpois(mu),
-    log(mu) <- a,
-    a ~ dnorm(4,1)
-  ), data=dat,
-)
+```{r include=FALSE}
+model_pois = glm(deaths ~ femininity + min_pressure + damage_norm, family="poisson", data=df)
 ```
 
 ```{r}
-model2 <- quap(
-  alist(
-    Y ~ dpois(mu),
-    log(mu) <- a+b1*x,
-    a~ dnorm(4,1),
-    b1 ~ dnorm(0,1)
-  ), data=dat,
-)
-
-precis(model2)
+exp(model_pois$coefficients)
 ```
+
+For every unit increase in femininity score, there is an approximate $8\%$ increase in deaths.
 
 \newpage
+### Negative Binomial Regression
 
-```{r}
-plot(precis(model2))
-```
+We can model deaths through negative binomial regression. The research hypothesis and conceptual model are the same as for poisson regression:
 
-The coefficient for femininity is close to zero but the credible interval does not overlap zero.
+### Hypothesis
 
-\newpage
+The number of deaths increases with femininity.
 
-```{r}
-post <- extract.samples(model2)
-dens(post$b1)
+### Model
+
+$$log(\mu_i) = \beta_0 + \beta_1 x_{1i} + \beta_2 x_{2i} + \beta_3 x_{3i}$$ where $x_{1i}$ is the level of femininity, $x_{2i}$ is the minimum pressure measurement, and $x_{3i}$ is the normalized estimate of damages.
+
+### Results
+
+The R printout for the model results can be seen in Appendix section [PUT SECTION]. The printout shows that normalized damage and minimum pressure are significant in explaining deaths, i.e. the variables have a p-value below $0.05$. The coefficient associated with femininity score isn't significant at any level, i.e. the p-value is above $0.10$. Thus, we fail to reject the null hypothesis that the coefficient of femininity score is 0. In other words, this model provides evidence that there is not an association between femininity score and hurricane deaths. The additional dispersion parameter, $\theta$, is estimated from the data and is shown in the output to be 0.717. The coefficients have the same interpretation as poisson regression.
+
+```{r include=FALSE}
+model_nb = glm.nb(deaths ~ femininity + min_pressure + damage_norm, data=df)
 ```
 
 ## Comparison
 
-```{r}
-compare(model1, model2)
-```
+A likelihood ratio test is performed to determine which model is more appropriate.
 
-The model with femininity performs better than the intercept only model, suggesting femininity has a significant effect in predicting deaths from hurricanes.
+```{r}
+pchisq(2*(logLik(model_nb) - logLik(model_pois)), df=1, lower.tail=FALSE)
+```
 
 \newpage
 ## Model Fit
 
-The model predicts well storms around the mean of death count and poorly storms that are much higher or lower than the mean death count.
 
-```{r}
-df$deaths_est <- exp(mean(post$a) + mean(post$b1) * df$femininity)
-plot(df$deaths, col=rangi2, xlab="Hurricane", ylab="Death Count")
-points(df$deaths_est)
-abline(h=mean(df$deaths), lty=2, col="red")
-```
 
 \newpage
 ## Conclusion
 
 The final model uses femininity to predict death count since it performs better than an intercept only model. This model has a positive coefficient associated with femininity, suggesting higher scores of femininity result in more deaths. More concretely, for a unit increase in femininity, the estimated death count increases by a factor of about $e^{0.07}=1.072508$, or increases by $7\%$. This suggests that an increase of 1 in the femininity score of a hurricane's name is estimated to have 107 deaths instead of 100. This analysis lends credence to the hypotheses proposed by Jung et.al (2014), namely that female hurricanes are deadlier than male hurricanes.
+
+\newpage
+## Appendix
+
+### Poisson Model
+
+```{r}
+model_pois = glm(deaths ~ femininity + min_pressure + damage_norm, family="poisson", data=df)
+summary(model_pois)
+```
+
+### Negative Binomial Model
+
+```{r}
+model_nb = glm.nb(deaths ~ femininity + min_pressure + damage_norm, data=df)
+summary(model_nb)
+```
 
