@@ -2,7 +2,15 @@
 title: "Hurricane Femininity and Deaths"
 author: "Sam Kinghorn"
 date: "`r Sys.Date()`"
-output: pdf_document
+output: 
+  pdf_document:
+    number_sections: true
+fontsize: 12pt
+indent: true
+linestretch: 1.5
+documentclass: article
+bibliography: hurricanes_references.bib
+# biblio-style: amsplain
 ---
 
 According to the paper published by Jung et al. (2014), hurricanes with female names are deadlier than ones with male names because people unconsciously think that it will be less dangerous. I will explore this claim through an EDA and model deaths based on femininity to see if there is any significance.
@@ -15,6 +23,8 @@ First, I load the data and investigate the femininity of hurricanes. 62 hurrican
 library(rethinking)
 library(tidyverse)
 library(lme4)
+library(kableExtra)
+library(MASS)
 ```
 
 ```{r}
@@ -25,6 +35,14 @@ df = Hurricanes
 ```{r}
 table(df$female)
 summary(df$femininity)
+```
+
+\newpage
+
+The distribution of deaths is skewed right with most the most death counts occurring between 0 and 10. There are extreme observations having death counts over 200. 
+
+```{r}
+ggplot( df, aes( x=deaths ) ) + geom_histogram( bins=20 ) + labs(title='Distribution of Deaths')
 ```
 
 \newpage
@@ -73,7 +91,7 @@ The response variable is the number of deaths, therefore we are modeling a count
 sprintf("mean = %1.2f, var = %1.2f", mean(df$deaths), var(df$deaths))
 ```
 
-Since the variance is much larger than the mean, the count data is over-dispersed. When count data is over-dispersed or under-dispersed, negative binomial regression can be used. Negative binomial regression is a generalization of Poisson regression and doesn't have the assumption of equidispersion. Negative binomial regression has an extra parameter, $\theta$ that can accommodate over-dispersion. 
+Since the variance is much larger than the mean, the count data is over-dispersed. When count data is over-dispersed or under-dispersed, negative binomial regression can be used. Negative binomial regression is a generalization of Poisson regression and doesn't have the assumption of equidispersion. Negative binomial regression has an extra parameter, $\theta$ that can accommodate over-dispersion. Depending on the severity of over-dispersion, poisson regression might have inaccurate results, like smaller standard errors and confidence intervals, because the assumptions of the model are not met. 
 
 ```{r}
 table = data.frame(c('$\\lambda$', '$\\lambda$'), c('$\\lambda$', '$\\lambda + \\frac {\\lambda^2}{\\theta}$'))
@@ -85,7 +103,7 @@ table = data.frame(c('$\\lambda$', '$\\lambda$'), c('$\\lambda$', '$\\lambda + \
 ```
 
 
-I will use both models and compare the results. The covariates include femininity score, minimum pressure of the storm, and normalized estimated damage of the storm in dollars. Minimum pressure is a measure of storm strength where lower values indicate a stronger storm. The main research question is on the significance of femininity score, but the other variables will be included to account for their effects on deaths. 
+I will use both models and compare the results. The covariates include femininity score, minimum pressure of the storm, and normalized estimated damage of the storm in dollars. Minimum pressure is a measure of storm strength where lower values indicate a stronger storm. The main research question is on the significance of femininity score, but the other variables will be included to account for their effects on deaths. I did not include interaction terms in the model because it's not clear what the interpretation would be. An interaction between femininity and minimum pressure or damage would suggest that one would depend on the other, or vice versa. Since the names of the hurricanes are picked before the hurricane starts, it doesn't make sense for these variables to be related. 
 
 ## Poisson Regression
 
@@ -105,12 +123,12 @@ $$log(\mu_i) = \beta_0 + \beta_1 x_{1i} + \beta_2 x_{2i} + \beta_3 x_{3i}$$ wher
 
 The R printout for the model results can be seen in Appendix section [PUT SECTION]. The printout shows all variables as highly significant, i.e. all variables have a p-value below $0.01$. This means femininity score offers some explanatory power for hurricane deaths. The coefficients can be interpreted through exponentiation
 
-```{r include=FALSE}
+```{r echo=T, results='hide'}
 model_pois = glm(deaths ~ femininity + min_pressure + damage_norm, family="poisson", data=df)
 ```
 
 ```{r}
-exp(model_pois$coefficients)
+exp(cbind(Coefficient = coef(model_pois), confint(model_pois)))
 ```
 
 For every unit increase in femininity score, there is an approximate $8\%$ increase in deaths.
@@ -132,27 +150,39 @@ $$log(\mu_i) = \beta_0 + \beta_1 x_{1i} + \beta_2 x_{2i} + \beta_3 x_{3i}$$ wher
 
 The R printout for the model results can be seen in Appendix section [PUT SECTION]. The printout shows that normalized damage and minimum pressure are significant in explaining deaths, i.e. the variables have a p-value below $0.05$. The coefficient associated with femininity score isn't significant at any level, i.e. the p-value is above $0.10$. Thus, we fail to reject the null hypothesis that the coefficient of femininity score is 0. In other words, this model provides evidence that there is not an association between femininity score and hurricane deaths. The additional dispersion parameter, $\theta$, is estimated from the data and is shown in the output to be 0.717. The coefficients have the same interpretation as poisson regression.
 
-```{r include=FALSE}
+A likelihood ratio test is performed to determine the significance of femininity. The chi-square test has a p-value of $0.38$ indicating femininity is not a statistically significant predictor of hurricane deaths.
+
+```{r echo=T, results='hide'}
 model_nb = glm.nb(deaths ~ femininity + min_pressure + damage_norm, data=df)
+model_nb2 = glm.nb(deaths ~ min_pressure + damage_norm, data=df)
 ```
 
+```{r}
+anova(model_nb, model_nb2)
+```
+
+\newpage
 ## Comparison
 
-A likelihood ratio test is performed to determine which model is more appropriate.
+The biggest difference in the two models is the level of significance for the regression coefficients. All of the coefficients are highly significant in the poisson model but femininity is insignificant in the negative binomial model. As expected, the confidence intervals in the negative binomial model are wider to account for over-dispersion. To determine which model is more appropriate, a likelihood ratio test is performed
 
 ```{r}
 pchisq(2*(logLik(model_nb) - logLik(model_pois)), df=1, lower.tail=FALSE)
 ```
 
-\newpage
-## Model Fit
+The likelihood ratio test shows a p-value of 0, indicating the addition of the dispersion parameter in the negative binomial model is more appropriate than the poisson model. Also, the AIC for the negative binomial regression is much smaller than the poisson regression, which suggests a better fit.
 
-
+In terms of the other parameters, the models are similar. An increase in minimum pressure is estimated to decrease deaths and an increase in damage is estimated to increase deaths. 
 
 \newpage
 ## Conclusion
 
-The final model uses femininity to predict death count since it performs better than an intercept only model. This model has a positive coefficient associated with femininity, suggesting higher scores of femininity result in more deaths. More concretely, for a unit increase in femininity, the estimated death count increases by a factor of about $e^{0.07}=1.072508$, or increases by $7\%$. This suggests that an increase of 1 in the femininity score of a hurricane's name is estimated to have 107 deaths instead of 100. This analysis lends credence to the hypotheses proposed by Jung et.al (2014), namely that female hurricanes are deadlier than male hurricanes.
+The goal of this analysis was to determine if there was evidence of higher hurricane death counts for more feminine names. Since the response variable is death counts, the results of poisson regression and negative binomial regression were compared. Negative binomial regression proved to be a better fit because of over-dispersion within death count. Based on the model results, femininity score is an insignificant predictor of hurricane death count. This provides evidence that hurricane deaths and the femininity score of the hurricane name are not associated, and that female hurricanes are not deadlier than male hurricanes.
+
+\newpage
+#References
+
+<!-- <div id="refs"></div> -->
 
 \newpage
 ## Appendix
