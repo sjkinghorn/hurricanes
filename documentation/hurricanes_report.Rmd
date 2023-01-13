@@ -7,7 +7,6 @@ output:
     number_sections: true
 fontsize: 11pt
 indent: true
-citation_package: natbib
 bibliography: hurricanes_references.bib
 biblio-style: "amsplain"
 ---
@@ -18,7 +17,7 @@ According to the paper published by @jung2014, hurricanes with female names are 
 
 # Data
 
-The data is found at in the rethinking package in R @rethinking, where the original data comes from @jung2014. The data set consists of hurricane name, year of hurricane, number of deaths, hurricane category, minimum pressure, normalized damage in dollars, whether the name is female or not, and femininity score. Minimum pressure is a measure of storm strength, where lower values indicate a stronger storm. The femininity score is on a scale from 1-11 where 1 is masculine and 11 is feminine. The score for each name was determined by an average of nine scores from nine raters that weren't aware they were hurricane names.
+The data is found at in the rethinking package in R [@rethinking], where the original data comes from @jung2014. The data set consists of hurricane name, year of hurricane, number of deaths, hurricane category, minimum pressure, normalized damage in dollars, whether the name is female or not, and femininity score. Minimum pressure is a measure of storm strength, where lower values indicate a stronger storm. The femininity score is on a scale from 1-11 where 1 is masculine and 11 is feminine. The score for each name was determined by an average of nine scores from nine raters that weren't aware they were hurricane names.
 
 # EDA
 
@@ -37,6 +36,8 @@ df = Hurricanes
 table(df$female)
 summary(df$femininity)
 ```
+
+\vspace{20mm}
 
 The distribution of deaths is skewed right with most death counts occurring between 0 and 10. There are extreme observations where hurricanes had death counts over 200. 
 
@@ -86,9 +87,9 @@ ggplot(data=df, mapping = aes(x=factor(category), y=femininity)) +
   labs(title="Boxplot Femininity by Hurricane Category", y="Femininity", x="Hurricane Category")
 ```
 
-\vspace{5mm} %5mm vertical space
+\vspace{10mm}
 
-The EDA suggests that female hurricanes may result in more deaths but they don't appear to be more dangerous in terms of damage and category. This corroborates the paper by Jung et al. (2014) @jung2014, that people may perceive female hurricanes as less dangerous and not take necessary precautions, despite female hurricanes being just as dangerous as male hurricanes. Next, I will fit a model to determine if femininity is significant in explaining deaths.
+The EDA suggests that female hurricanes may result in more deaths but they don't appear to be more dangerous in terms of damage and category. This corroborates the paper by @jung2014, that people may perceive female hurricanes as less dangerous and not take necessary precautions, despite female hurricanes being just as dangerous as male hurricanes. Next, I will fit a model to determine if femininity is significant in explaining deaths.
 
 \newpage
 
@@ -100,7 +101,7 @@ The response variable is the number of deaths, therefore we are modeling a count
 sprintf("mean = %1.2f, var = %1.2f", mean(df$deaths), var(df$deaths))
 ```
 
-Since the variance is much larger than the mean, the count data is over-dispersed. When count data is over-dispersed or under-dispersed, negative binomial regression can be used. Negative binomial regression is a generalization of Poisson regression and doesn't have the assumption of equidispersion. Negative binomial regression has an extra parameter, $\theta$ that can accommodate over-dispersion. The mean of the count is $E[y_i|\boldsymbol{x}_i] = \lambda_i$ and the variance of the count is $Var[y_i|\boldsymbol{x}_i]=\lambda_i+\frac{\lambda^2}{\theta}$ @greene2008. Depending on the severity of over-dispersion, Poisson regression might have inaccurate results, i.e. smaller standard errors and confidence intervals, because the assumptions of the model are not met. 
+Since the variance is much larger than the mean, the count data is over-dispersed. When count data is over-dispersed or under-dispersed, negative binomial regression can be used. Negative binomial regression is a generalization of Poisson regression and doesn't have the assumption of equidispersion. Negative binomial regression has an extra parameter, $\theta$ that can accommodate over-dispersion. The mean of the count is $E[y_i|\boldsymbol{x}_i] = \lambda_i$ and the variance of the count is $Var[y_i|\boldsymbol{x}_i]=\lambda_i+\frac{\lambda^2}{\theta}$ [@greene2008]. Depending on the severity of over-dispersion, Poisson regression might have inaccurate results, i.e. smaller standard errors and confidence intervals, because the assumptions of the model are not met. 
 
 I will use both models and compare the results. The covariates include femininity score, minimum pressure of the storm, and normalized estimated damage of the storm in dollars. Minimum pressure is a measure of storm strength where lower values indicate a stronger storm. The main research question is on the significance of femininity score, but the other variables will be included to account for their effects on deaths. I did not include interaction terms in the model because it's not clear what the interpretation would be. An interaction between femininity and minimum pressure or damage would suggest that one would depend on the other, or vice versa. Since the names of the hurricanes are picked before the hurricane starts, it doesn't make sense for these variables to depend on one another. 
 
